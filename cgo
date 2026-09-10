@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+
+# Directory shortcut helper.
+# For persistent "cd", call it through a shell function:
+#   cgo() { source "$HOME/bin/cgo" "$@"; }
+
+_cgo_config="${XDG_CONFIG_HOME:-$HOME/.config}/cgo/shortcuts"
+
+_cgo_is_sourced() {
+    [ "${BASH_SOURCE[0]}" != "$0" ]
+}
+
+_cgo_finish() {
+    local code="$1"
+
+    unset -f _cgo_is_sourced _cgo_finish _cgo_usage _cgo_ensure_config
+    unset -f _cgo_expand_path _cgo_lookup _cgo_list _cgo_validate_name
+    unset -f _cgo_add _cgo_remove _cgo_go _cgo_main
+    unset _cgo_config
+
+    if [ "${BASH_SOURCE[0]}" != "$0" ]; then
+        return "$code"
+    fi
+
+    exit "$code"
+}
+
+_cgo_usage() {
+    cat <<'EOF'
+Usage:
+  cgo <shortcut>         Go to a shortcut directory
+  cgo list              List available shortcuts
+  cgo config            Print the config file path
+  cgo add <name> [dir]  Add/update a custom shortcut, default dir is current
+  cgo remove <name>     Remove a custom shortcut
+
+Examples:
+  cgo boost
+  cgo add api ~/Documents/projets-clients/api
+  cgo remove api
+EOF
+}
+
+_cgo_ensure_config() {
+    mkdir -p "$(dirname "$_cgo_config")" || return 1
+
+    if [ ! -f "$_cgo_config" ]; then
+        {
+            printf '# cgo shortcuts\n'
+            printf '# Format: shortcut=/absolute/path\n'
+            printf '# Example: boost=%s/Documents/projets-clients/boost\n' "$HOME"
+        } > "$_cgo_config"
+        printf 'cgo: configuration created: %s\nAdd shortcuts with "cgo add <name> [dir]".\n' "$_cgo_config" >&2
+    fi
+}
+
+_cgo_expand_path() {
+    case "$1" in
+        "~") printf '%s\n' "$HOME" ;;
+        "~/"*) printf '%s/%s\n' "$HOME" "${1#~/}" ;;
+        *) printf '%s\n' "$1" ;;
+    esac
+}
+
+_cgo_lookup() {
+    local name="$1"
+    local key value
+
+    _cgo_ensure_config || return 1
+
+    while IFS='=' read -r key value; do
+        [ -z "$key" ] && continue
+        case "$key" in \#*) continue ;; esac
+
+        if [ "$key" = "$name" ]; then
+            _cgo_expand_path "$value"
+            return 0
+        fi
+    done < "$_cgo_config"
+
+    return 1
+}
+
+_cgo_list() {
+    _cgo_ensure_config || return 1
+
+    printf 'Shortcuts from %s:\n' "$_cgo_config"
+
+    if [ -s "$_cgo_config" ]; then
+        while IFS='=' read -r key value; do
+            [ -z "$key" ] && continue
+            case "$key" in \#*) continue ;; esac
+            printf '  %-18s %s\n' "$key" "$value"
+        done < "$_cgo_config"
+    fi
+}
+
+_cgo_validate_name() {
+    case "$1" in
+        ""|*[!A-Za-z0-9._-]*)
+            printf 'cgo: invalid shortcut name: %s\n' "$1" >&2
+            printf 'Use only letters, numbers, dot, underscore and dash.\n' >&2
+            return 1
+            ;;
+    esac
+}
+
+_cgo_add() {
+    local name="$1"
+    local dir="${2:-$PWD}"
+    local abs tmp
+
+    _cgo_validate_name "$name" || return 1
+
+    if [ ! -d "$dir" ]; then
+        printf 'cgo: not a directory: %s\n' "$dir" >&2
+        return 1
+    fi
+
+    abs="$(cd "$dir" && pwd -P)" || return 1
+    _cgo_ensure_config || return 1
+
+    tmp="${_cgo_config}.tmp.$$"
+    awk -F= -v key="$name" '$1 != key { print }' "$_cgo_config" > "$tmp" || return 1
+    printf '%s=%s\n' "$name" "$abs" >> "$tmp" || return 1
+    mv "$tmp" "$_cgo_config" || return 1
+
+    printf 'cgo: %s -> %s\n' "$name" "$abs"
+}
+
+_cgo_remove() {
+    local name="$1"
+    local tmp
+
+    _cgo_validate_name "$name" || return 1
+
+    _cgo_ensure_config || return 1
+
+    tmp="${_cgo_config}.tmp.$$"
+    awk -F= -v key="$name" '$1 != key { print }' "$_cgo_config" > "$tmp" || return 1
+    mv "$tmp" "$_cgo_config" || return 1
+
+    printf 'cgo: removed %s\n' "$name"
+}
+
+_cgo_go() {
+    local name="$1"
+    local target
+
+    if ! target="$(_cgo_lookup "$name")"; then
+        printf 'cgo: unknown shortcut: %s\n' "$name" >&2
+        printf 'Run "cgo list" to see available shortcuts.\n' >&2
+        return 1
+    fi
+
+    if [ ! -d "$target" ]; then
+        printf 'cgo: shortcut exists but directory is missing: %s\n' "$target" >&2
+        return 1
+    fi
+
+    if _cgo_is_sourced; then
+        cd "$target" || return 1
+    else
+        printf '%s\n' "$target"
+        printf 'Tip: add this to ~/.bashrc or ~/.bash_aliases so "cgo %s" changes your current shell:\n' "$name" >&2
+        printf '  cgo() { source "$HOME/bin/cgo" "$@"; }\n' >&2
+    fi
+}
+
+_cgo_main() {
+    case "$1" in
+        ""|-h|--help|help)
+            _cgo_usage
+            ;;
+        list|ls)
+            _cgo_list
+            ;;
+        config)
+            _cgo_ensure_config || return 1
+            printf '%s\n' "$_cgo_config"
+            ;;
+        add)
+            shift
+            if [ -z "$1" ]; then
+                printf 'cgo: missing shortcut name\n' >&2
+                return 1
+            fi
+            _cgo_add "$@"
+            ;;
+        remove|rm|del)
+            shift
+            if [ -z "$1" ]; then
+                printf 'cgo: missing shortcut name\n' >&2
+                return 1
+            fi
+            _cgo_remove "$1"
+            ;;
+        *)
+            _cgo_go "$1"
+            ;;
+    esac
+}
+
+_cgo_main "$@"
+_cgo_finish "$?"

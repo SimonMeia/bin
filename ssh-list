@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+
+# ─────────────────────────────────────────────
+#  ssh-list — Liste toutes les connexions SSH
+#  depuis ~/.ssh/config
+#
+#  Usage:
+#    ssh-list                  # affichage compact
+#    ssh-list -v               # affichage complet
+#    ssh-list backtik          # filtre compact
+#    ssh-list backtik -v       # filtre + complet
+# ─────────────────────────────────────────────
+
+SSH_CONFIG="$HOME/.ssh/config"
+FILTER=""
+VERBOSE=false
+
+for arg in "$@"; do
+  case "$arg" in
+    -v|--verbose) VERBOSE=true ;;
+    *)            FILTER="$arg" ;;
+  esac
+done
+
+BOLD="\033[1m"
+CYAN="\033[36m"
+GREEN="\033[32m"
+YELLOW="\033[33m"
+GRAY="\033[90m"
+RESET="\033[0m"
+
+if [[ ! -f "$SSH_CONFIG" ]]; then
+  echo "❌ Fichier SSH config introuvable : $SSH_CONFIG"
+  exit 1
+fi
+
+# Parse toutes les entrées dans un tableau associatif
+declare -A hosts_user hosts_hostname hosts_port hosts_identity
+declare -a hosts_order
+
+host=""
+hostname=""
+user=""
+port=""
+identity=""
+
+flush_entry() {
+  [[ -z "$host" ]] && return
+  if [[ -z "$FILTER" ]] || [[ "$host" == *"$FILTER"* ]]; then
+    hosts_order+=("$host")
+    hosts_user["$host"]="$user"
+    hosts_hostname["$host"]="$hostname"
+    hosts_port["$host"]="${port:-22}"
+    hosts_identity["$host"]="$identity"
+  fi
+  host=""; hostname=""; user=""; port=""; identity=""
+}
+
+while IFS= read -r line; do
+  [[ "$line" =~ ^[[:space:]]*# ]] && continue
+  [[ -z "${line// }" ]] && continue
+
+  key=$(echo "$line" | awk '{print tolower($1)}')
+  val=$(echo "$line" | awk '{$1=""; sub(/^[[:space:]]+/, ""); print}')
+
+  case "$key" in
+    host)         flush_entry; host="$val" ;;
+    hostname)     hostname="$val" ;;
+    user)         user="$val" ;;
+    port)         port="$val" ;;
+    identityfile) identity="$val" ;;
+  esac
+done < "$SSH_CONFIG"
+flush_entry
+
+# Tri alphabétique
+IFS=$'\n' sorted=($(sort <<<"${hosts_order[*]}")); unset IFS
+
+echo ""
+echo -e "${BOLD}🔑 Connexions SSH disponibles${RESET}"
+[[ -n "$FILTER" ]] && echo -e "${GRAY}   Filtre : \"${FILTER}\"${RESET}"
+echo -e "${GRAY}$(printf '─%.0s' {1..60})${RESET}"
+
+count=0
+for h in "${sorted[@]}"; do
+  u="${hosts_user[$h]}"
+  hn="${hosts_hostname[$h]}"
+  p="${hosts_port[$h]}"
+  id="${hosts_identity[$h]}"
+  count=$((count + 1))
+
+  echo -e ""
+  if $VERBOSE; then
+    echo -e "  ${CYAN}${BOLD}${h}${RESET}"
+    echo -e "    ${GREEN}ssh${RESET} ${u:+${YELLOW}${u}${RESET}@}${hn}${p:+ -p ${p}}"
+    [[ -n "$u"  ]] && echo -e "    ${GRAY}User     :${RESET} ${u}"
+    [[ -n "$hn" ]] && echo -e "    ${GRAY}HostName :${RESET} ${hn}"
+    [[ -n "$p"  ]] && echo -e "    ${GRAY}Port     :${RESET} ${p}"
+    [[ -n "$id" ]] && echo -e "    ${GRAY}Key      :${RESET} ${id}"
+  else
+    echo -e "  ${CYAN}${BOLD}${h}${RESET}  ${GRAY}→${RESET}  ${GREEN}ssh${RESET} ${u:+${YELLOW}${u}${RESET}@}${hn}${p:+ -p ${p}}"
+  fi
+done
+
+echo ""
+echo -e "${GRAY}$(printf '─%.0s' {1..60})${RESET}"
+echo -e "  ${BOLD}${count} connexion(s)${RESET}${GRAY}  |  ssh-list -v pour plus de détails${RESET}"
+echo ""
