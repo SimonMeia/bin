@@ -1,0 +1,27 @@
+name = "uptime-check"
+description = "Vérifier la disponibilité des URL configurées"
+
+[[options]]
+name = ["-f", "--file"]
+description = "Fichier contenant les URL à vérifier"
+args = { name = "fichier", template = "filepaths" }
+
+[[options]]
+name = ["-t", "--timeout"]
+description = "Délai maximal par URL, en secondes (défaut : 10)"
+args = { name = "secondes", suggestions = ["5", "10", "20", "30", "60"] }
+
+[[options]]
+name = ["-i", "--interface"]
+description = "Interface réseau à utiliser"
+exclusiveOn = ["--direct"]
+args = { name = "interface", generators = { script = '''ip -o link show 2>/dev/null | awk -F': ' '{ sub(/@.*/, "", $2); print $2 }' ''' } }
+
+[[options]]
+name = "--direct"
+description = "Utiliser l'interface de la route Internet principale"
+exclusiveOn = ["-i", "--interface"]
+
+[[options]]
+name = ["-h", "--help"]
+description = "Afficher l'aide"

@@ -1,0 +1,11 @@
+name = "ssh-list"
+description = "Lister les connexions de ~/.ssh/config"
+
+[args]
+name = "filtre"
+isOptional = true
+generators = { script = '''awk 'tolower($1) == "host" { for (i = 2; i <= NF; i++) { if ($i ~ /^#/) break; if ($i !~ /[*?!]/) print $i } }' "$HOME/.ssh/config" 2>/dev/null''' }
+
+[[options]]
+name = ["-v", "--verbose"]
+description = "Afficher les détails des connexions"

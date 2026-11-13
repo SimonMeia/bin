@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${1:-}" in
+    -h|--help)
+        printf 'Usage: custom-commands\n\nListe les commandes exécutables du dossier contenant ce script.\n'
+        exit 0
+        ;;
+    "") ;;
+    *)
+        printf 'Usage: custom-commands\n' >&2
+        exit 2
+        ;;
+esac
+
+commands_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+
+for command_file in "$commands_dir"/*; do
+    if [[ -f "$command_file" && -x "$command_file" ]]; then
+        printf '%s\n' "${command_file##*/}"
+    fi
+done | LC_ALL=C sort

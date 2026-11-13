@@ -1,0 +1,2 @@
+name = "docker-stop-all"
+description = "Arrêter tous les conteneurs Docker en cours d'exécution"
