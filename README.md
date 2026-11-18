@@ -87,38 +87,6 @@ Arrête tous les conteneurs Docker actuellement en cours d'exécution.
 docker-stop-all
 ```
 
-## Autocomplétion avec Lig
-
-Après avoir installé et activé [Lig](https://github.com/KevenGoncalves/lig),
-installez les complétions des commandes du dépôt :
-
-```bash
-bash ~/bin/lig/install.sh
-```
-
-Ouvrez ensuite un nouveau terminal. Les fichiers de `lig/specs/` sont liés dans
-`${XDG_CONFIG_HOME:-$HOME/.config}/lig/specs/` : leurs modifications restent
-donc synchronisées avec ce dépôt.
-
-Les suggestions incluent les raccourcis `cgo` (également après `add` et
-`remove`), les dossiers après `cgo add NOM`, les options de `uptime-check`,
-les interfaces réseau et les hôtes pour le filtre `ssh-list`.
-Les raccourcis sont lus depuis la configuration `cgo`, sans liste à maintenir.
-
-Si aucune configuration Lig n'existe, l'installation active aussi les suggestions
-de noms de commandes pendant la saisie. Sinon, ajoutez `complete_commands = true`
-à la section `[behavior]` de `~/.config/lig/config.toml` pour les activer
-(ou utilisez `Ctrl+Espace` pour les afficher à la demande).
-
-Pour vérifier les suggestions sans exécuter les commandes :
-
-```bash
-lig specs check
-lig complete "cgo "
-lig complete "cgo remove "
-lig complete "uptime-check --"
-```
-
 ## Vérification
 
 Après une modification, vérifiez la syntaxe des scripts concernés :

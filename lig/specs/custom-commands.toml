@@ -1,6 +1,0 @@
-name = "custom-commands"
-description = "Lister les commandes personnelles de ~/bin"
-
-[[options]]
-name = ["-h", "--help"]
-description = "Afficher l'aide"
